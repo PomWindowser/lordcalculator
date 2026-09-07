@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lord Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root {
+  --bg: #FDFDFE;
+  --bg-soft: #F5F5F7;
+  --bg-grid: #E8E8ED;
+  --ink: #0D0D0F;
+  --ink-muted: #6E6E77;
+  --accent: #1132F0;
+  --accent-glow: rgba(17, 50, 240, 0.4);
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --radius: 2rem;
+  --radius-sm: 1rem;
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 32px 64px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0,0,0,0.02);
+  --inset-shadow: inset 0 2px 4px rgba(255,255,255,1), inset 0 -2px 4px rgba(0,0,0,0.02);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background-color: var(--bg);
+  background-image: 
+    linear-gradient(var(--bg-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: center top;
+  color: var(--ink);
+  font-family: 'Instrument Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+h1, h2, .price {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+/* UI Hardware Containers */
+.hardware-box {
+  background: var(--bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.hardware-box::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  box-shadow: var(--inset-shadow);
+  pointer-events: none;
+}
+
+/* Hero Section */
+.hero {
+  padding: clamp(4rem, 10vw, 8rem) clamp(1.5rem, 5vw, 4rem) clamp(3rem, 8vw, 5rem);
+}
+
+.hero-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: clamp(3rem, 6vw, 6rem);
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .hero-inner { grid-template-columns: 1fr; gap: 3rem; text-align: center; }
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  padding: 0.4rem 0.8rem;
+  border-radius: 99px;
+  border: 1px solid var(--glass-border);
+  margin-bottom: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: var(--shadow-sm);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.5; }
+}
+
+h1 {
+  font-size: clamp(3.5rem, 7.5vw, 5.5rem);
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, var(--ink) 0%, #4A4A52 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.tagline {
+  font-size: clamp(1.1rem, 2vw, 1.25rem);
+  color: var(--ink-muted);
+  max-width: 24rem;
+  font-weight: 500;
+}
+
+@media (max-width: 900px) {
+  .tagline { margin: 0 auto; }
+}
+
+/* 2D Canvas Stage */
+.dot-stage-container {
+  width: 100%;
+  height: 340px;
+  background: #FDFDFE;
+  position: relative;
+  z-index: 10;
+}
+
+.dot-stage-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--bg-grid) 1px, transparent 1px);
+  background-size: 20px 20px;
+  opacity: 0.5;
+}
+
+#dotCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  position: relative;
+  z-index: 2;
+}
+
+/* Functions / 3D Section */
+.functions {
+  padding: clamp(3rem, 7vw, 5rem) clamp(1.5rem, 5vw, 4rem);
+  text-align: center;
+  position: relative;
+}
+
+.functions h2 {
+  font-size: clamp(2.2rem, 4.5vw, 3.2rem);
+  margin-bottom: 0.75rem;
+}
+
+.functions .tagline {
+  margin: 0 auto 4rem;
+  max-width: 32rem;
+}
+
+.orbit-stage {
+  position: relative;
+  width: 100%;
+  max-width: 1100px;
+  height: min(600px, 90vw);
+  margin: 0 auto;
+  pointer-events: none;
+}
+
+.orbit-stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  filter: drop-shadow(0 20px 40px rgba(0,0,0,0.05));
+}
+
+.orbit-overlay-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.orbit-overlay-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  will-change: transform, opacity;
+  transition: opacity 0.2s ease-out;
+}
+
+/* Translucent Glassmorphism UI Icons */
+.orbit-icon-content {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06), inset 0 2px 4px rgba(255, 255, 255, 0.8);
+  margin-bottom: 0.5rem;
+}
+
+.orbit-icon-content svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.2;
+}
+
+.orbit-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(6px);
+  padding: 4px 12px;
+  border-radius: 99px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+/* Details Section */
+.details {
+  padding: clamp(4rem, 9vw, 6rem) clamp(1.5rem, 5vw, 4rem);
+  display: flex;
+  justify-content: center;
+}
+
+.details-box {
+  background: var(--ink);
+  color: #fff;
+  padding: clamp(3rem, 6vw, 4rem);
+  border-radius: var(--radius);
+  max-width: 48rem;
+  width: 100%;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 24px 48px rgba(13, 13, 15, 0.2);
+}
+
+.details-box::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+}
+
+.price {
+  font-size: clamp(3.5rem, 9vw, 6rem);
+  color: #fff;
+  margin-bottom: 0.2rem;
+  background: linear-gradient(180deg, #FFFFFF 0%, #A1A1AA 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.price-label {
+  color: #A1A1AA;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 2rem;
+}
+
+.copy {
+  font-size: 1.15rem;
+  color: #D4D4D8;
+  line-height: 1.6;
+  max-width: 36rem;
+  margin: 0 auto;
+  font-weight: 400;
+}
+
+/* Footer */
+footer {
+  padding: 2rem 1.5rem 4rem;
+  text-align: center;
+}
+
+.mark {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.8rem;
+  background: var(--ink);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-weight: 800;
+  font-size: 1.1rem;
+  margin: 0 auto 1.2rem;
+  letter-spacing: -0.02em;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1), inset 0 2px 4px rgba(255,255,255,0.2);
+}
+
+footer p {
+  color: var(--ink-muted);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+</style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <div class="hero-inner">
+      <div>
+        <div class="status-badge">
+          <span class="dot" aria-hidden="true"></span>
+          In Engineering
+        </div>
+        <h1>Lord Calculator</h1>
+        <p class="tagline">An everyday tool, re-engineered with precision and intelligence.</p>
+      </div>
+      <div class="hardware-box dot-stage-container">
+        <canvas id="dotCanvas"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section class="functions">
+    <h2>Capabilities</h2>
+    <p class="tagline">A unified ecosystem housed in a single, perfectly machined slab.</p>
+    <div class="orbit-stage" id="webgl-stage">
+      <div class="orbit-overlay-container">
+        <!-- Overlay items -->
+        <div class="orbit-overlay-item">
+          <div class="orbit-icon-content">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+          </div>
+          <span class="orbit-label">Internet</span>
+        </div>
+        <div class="orbit-overlay-item">
+          <div class="orbit-icon-content">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+              <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+              <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+              <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+            </svg>
+          </div>
+          <span class="orbit-label">Apps</span>
+        </div>
+        <div class="orbit-overlay-item">
+          <div class="orbit-icon-content">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="6" y1="12" x2="10" y2="12"/>
+              <line x1="8" y1="10" x2="8" y2="14"/>
+              <circle cx="15" cy="11" r="1" fill="currentColor"/>
+              <circle cx="17" cy="13" r="1" fill="currentColor"/>
+              <rect x="2" y="6" width="20" height="12" rx="4"/>
+            </svg>
+          </div>
+          <span class="orbit-label">Games</span>
+        </div>
+        <div class="orbit-overlay-item">
+          <div class="orbit-icon-content">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/>
+              <polyline points="12 7 12 12 15 15"/>
+            </svg>
+          </div>
+          <span class="orbit-label">Time</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="details">
+    <div class="details-box">
+      <p class="price">&euro;45</p>
+      <p class="price-label">Target Hardware MSRP</p>
+      <p class="copy">Lord Calculator is currently undergoing R&D prototyping. Target production and shipping are slated for 2026. Specifications and structural materials are subject to refinement.</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="mark">LC</div>
+    <p>&copy; 2026 Lord Calculator. A small tool, taken seriously.</p>
+  </footer>
+</main>
+
+<script>
+// ─────────────────────────────────────────────
+// Premium 2D Canvas Physics (Trails & Engraved Text)
+// ─────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    await document.fonts.load('800 72px "Bricolage Grotesque"');
+  } catch (e) {}
+
+  const canvas = document.getElementById('dotCanvas');
+  const ctx = canvas.getContext('2d');
+  const container = canvas.parentElement;
+
+  let w, h;
+  let letters = [];
+  let particles = [];
+  let trail = [];
+
+  const ball = {
+    x: 60,
+    y: 60,
+    vx: 6.2,
+    vy: 5.0,
+    radius: 10,
+    color: '#1132F0'
+  };
+
+  const textToReveal = "2026";
+
+  function resize() {
+    const rect = container.getBoundingClientRect();
+    w = canvas.width = Math.round(rect.width * devicePixelRatio);
+    h = canvas.height = Math.round(rect.height * devicePixelRatio);
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    initLetters();
+  }
+
+  function initLetters() {
+    letters = [];
+    const logicalW = w / devicePixelRatio;
+    const logicalH = h / devicePixelRatio;
+
+    ctx.font = '800 76px "Bricolage Grotesque", sans-serif';
+    
+    const gap = 8;
+    let textWidth = 0;
+    for (let i = 0; i < textToReveal.length; i++) {
+      textWidth += ctx.measureText(textToReveal[i]).width;
+    }
+    const totalWidth = textWidth + (textToReveal.length - 1) * gap;
+
+    let startX = (logicalW - totalWidth) / 2;
+    const centerY = logicalH / 2 + 5;
+
+    for (let i = 0; i < textToReveal.length; i++) {
+      const char = textToReveal[i];
+      const charW = ctx.measureText(char).width;
+      letters.push({
+        char,
+        x: startX + charW / 2,
+        y: centerY,
+        halfW: charW / 2 + 8,
+        halfH: 38,
+        revealed: false,
+        hitScale: 1,
+        illumination: 0
+      });
+      startX += charW + gap;
+    }
+  }
+
+  function createParticles(x, y) {
+    for (let i = 0; i < 18; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 5;
+      particles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 2,
+        radius: 1.5 + Math.random() * 3,
+        life: 1,
+        color: i % 3 === 0 ? '#1132F0' : '#0D0D0F'
+      });
+    }
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const logicalW = w / devicePixelRatio;
+    const logicalH = h / devicePixelRatio;
+
+    ctx.clearRect(0, 0, logicalW, logicalH);
+
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    if (ball.x - ball.radius < 0) { ball.x = ball.radius; ball.vx = Math.abs(ball.vx); }
+    if (ball.x + ball.radius > logicalW) { ball.x = logicalW - ball.radius; ball.vx = -Math.abs(ball.vx); }
+    if (ball.y - ball.radius < 0) { ball.y = ball.radius; ball.vy = Math.abs(ball.vy); }
+    if (ball.y + ball.radius > logicalH) { ball.y = logicalH - ball.radius; ball.vy = -Math.abs(ball.vy); }
+
+    trail.push({ x: ball.x, y: ball.y });
+    if (trail.length > 12) trail.shift();
+
+    if (trail.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(trail[0].x, trail[0].y);
+      for (let i = 1; i < trail.length; i++) {
+        ctx.lineTo(trail[i].x, trail[i].y);
+      }
+      ctx.strokeStyle = 'rgba(17, 50, 240, 0.2)';
+      ctx.lineWidth = ball.radius * 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    }
+
+    letters.forEach(item => {
+      const dx = ball.x - item.x;
+      const dy = ball.y - item.y;
+      const dist = Math.hypot(dx, dy);
+      const minDist = ball.radius + item.halfW * 0.85;
+
+      if (dist < minDist) {
+        if (!item.revealed) {
+          item.revealed = true;
+          item.hitScale = 1.25;
+          item.illumination = 1;
+          createParticles(item.x, item.y);
+        }
+        const nx = dx / (dist || 1);
+        const ny = dy / (dist || 1);
+        const speed = Math.hypot(ball.vx, ball.vy);
+        ball.vx = nx * Math.max(speed, 6.0);
+        ball.vy = ny * Math.max(speed, 6.0);
+      }
+
+      item.hitScale += (1 - item.hitScale) * 0.15;
+      if (item.revealed) {
+        item.illumination += (1 - item.illumination) * 0.1;
+      }
+    });
+
+    ctx.font = '800 76px "Bricolage Grotesque", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    letters.forEach(item => {
+      ctx.save();
+      ctx.translate(item.x, item.y);
+      ctx.scale(item.hitScale, item.hitScale);
+
+      if (item.revealed) {
+        ctx.fillStyle = `rgba(13, 13, 15, ${item.illumination})`;
+        ctx.fillText(item.char, 0, 0);
+      } else {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
+        ctx.fillText(item.char, 0, 0);
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeText(item.char, 0, 0);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillText(item.char, -1, -1);
+      }
+      ctx.restore();
+    });
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.15;
+      p.life -= 0.02;
+
+      if (p.life <= 0) {
+        particles.splice(i, 1);
+        continue;
+      }
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = p.life;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+    ctx.fillStyle = ball.color;
+    ctx.fill();
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+  animate();
+});
+
+// ─────────────────────────────────────────────
+// Premium 3D WebGL (Continuous Visibility during Orbit)
+// ─────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const stage = document.getElementById('webgl-stage');
+  if (!stage) return;
+
+  let width = stage.clientWidth;
+  let height = stage.clientHeight;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 100);
+  camera.position.set(0, 2.5, 12);
+  camera.lookAt(0, -0.5, 0);
+
+  const renderer = new THREE.WebGLRenderer({
+    alpha: true,
+    antialias: true,
+    powerPreference: 'high-performance'
+  });
+  renderer.setSize(width, height);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x000000, 0);
+  renderer.physicallyCorrectLights = true;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  stage.insertBefore(renderer.domElement, stage.firstChild);
+
+  // Lighting Setup
+  const ambient = new THREE.AmbientLight(0xffffff, 0.9);
+  scene.add(ambient);
+
+  const keyLight = new THREE.DirectionalLight(0xffffff, 4);
+  keyLight.position.set(5, 10, 7);
+  scene.add(keyLight);
+
+  const fillLight = new THREE.PointLight(0x1132F0, 18, 25);
+  fillLight.position.set(-6, -2, 4);
+  scene.add(fillLight);
+
+  // ── Smooth Space Star Core Construction ──
+  const starGroup = new THREE.Group();
+
+  // Glowing Stellar Core Sphere
+  const coreGeo = new THREE.SphereGeometry(1.1, 32, 32);
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: 0x1132F0,
+    emissive: 0x1132F0,
+    emissiveIntensity: 1.5,
+    roughness: 0.1,
+    metalness: 0.8
+  });
+  const coreSphere = new THREE.Mesh(coreGeo, coreMat);
+  starGroup.add(coreSphere);
+
+  // Outer Glowing Aura Ring
+  const ringGeo = new THREE.TorusGeometry(1.8, 0.04, 16, 64);
+  const ringMat = new THREE.MeshStandardMaterial({
+    color: 0x1132F0,
+    emissive: 0x1132F0,
+    emissiveIntensity: 1.2,
+    roughness: 0.3
+  });
+  const auraRing = new THREE.Mesh(ringGeo, ringMat);
+  auraRing.rotation.x = Math.PI / 3;
+  starGroup.add(auraRing);
+
+  scene.add(starGroup);
+
+  // ── Orbiting Spheres ──
+  const orbitRadius = 4.2;
+  const sphereGeo = new THREE.SphereGeometry(0.75, 64, 64);
+  const spheres = [];
+  const overlays = document.querySelectorAll('.orbit-overlay-item');
+
+  const glassMat = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    metalness: 0.05,
+    roughness: 0.1,
+    transmission: 0.9,
+    ior: 1.4,
+    thickness: 0.8,
+    transparent: true,
+    opacity: 0.85,
+    clearcoat: 1.0
+  });
+
+  const darkGlassMat = new THREE.MeshPhysicalMaterial({
+    color: 0x111118,
+    metalness: 0.2,
+    roughness: 0.15,
+    transmission: 0.7,
+    ior: 1.5,
+    thickness: 1.0,
+    transparent: true,
+    opacity: 0.8,
+    clearcoat: 1.0
+  });
+
+  const materials = [glassMat, darkGlassMat, glassMat, darkGlassMat];
+
+  materials.forEach((mat) => {
+    const mesh = new THREE.Mesh(sphereGeo, mat);
+    scene.add(mesh);
+    spheres.push(mesh);
+  });
+
+  let angle = 0;
+  const tempV = new THREE.Vector3();
+  let lastTime = performance.now();
+
+  function animate(now) {
+    requestAnimationFrame(animate);
+
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+
+    angle += 0.4 * dt;
+    
+    starGroup.rotation.y += 0.5 * dt;
+    starGroup.rotation.z += 0.2 * dt;
+    auraRing.rotation.z -= 0.3 * dt;
+
+    coreMat.emissiveIntensity = 1.2 + Math.sin(now * 0.003) * 0.4;
+
+    spheres.forEach((sphere, i) => {
+      const a = angle + (i * Math.PI / 2);
+      sphere.position.x = Math.cos(a) * orbitRadius;
+      sphere.position.z = Math.sin(a) * orbitRadius;
+      sphere.position.y = Math.sin((now * 0.0015) + i * 1.5) * 0.3;
+
+      sphere.getWorldPosition(tempV);
+      tempV.project(camera);
+
+      const x = (tempV.x * 0.5 + 0.5) * width;
+      const y = (-tempV.y * 0.5 + 0.5) * height;
+
+      const overlay = overlays[i];
+      if (overlay) {
+        // Keep elements visible throughout the entire orbit path
+        const normalizedDepth = (sphere.position.z + orbitRadius) / (2 * orbitRadius); // 0 to 1
+        const scale = 0.75 + normalizedDepth * 0.35;
+        const opacity = 0.5 + normalizedDepth * 0.5;
+
+        overlay.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px) scale(${scale})`;
+        overlay.style.opacity = opacity.toString();
+        overlay.style.pointerEvents = 'auto';
+        overlay.style.zIndex = Math.round(normalizedDepth * 100);
+      }
+    });
+
+    renderer.render(scene, camera);
+  }
+
+  function onResize() {
+    width = stage.clientWidth;
+    height = stage.clientHeight;
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height);
+  }
+
+  window.addEventListener('resize', onResize);
+  requestAnimationFrame(animate);
+});
+</script>
+</body>
+</html>
